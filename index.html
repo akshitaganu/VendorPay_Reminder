@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VendorPay Reminder</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F3A56A">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#EEF1F6;
+    --card:#FFFFFF;
+    --line:#DDE3EC;
+    --ink:#1E2530;
+    --muted:#6B7686;
+    --blue:#F3A56A;
+    --blue-dark:#D97F42;
+    --amber-bg:#FFF3D9;
+    --amber-fg:#9A6300;
+    --red-bg:#FDE2E1;
+    --red-fg:#B4231F;
+    --green-bg:#DFF3E8;
+    --green-fg:#1D7A48;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  .shell{ max-width:1080px; width:100%; margin:0 auto; padding:0 0 60px; box-sizing:border-box; }
+
+  .topbar{
+    background:linear-gradient(135deg,var(--blue),var(--blue-dark));
+    color:#fff;
+    padding:22px 28px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    border-radius:0 0 14px 14px;
+    margin-bottom:26px;
+  }
+  .topbar .icon{ font-size:20px; }
+  .topbar h1{ font-size:18px; margin:0; font-weight:700; letter-spacing:0.02em; }
+
+  .content{ padding:0 16px; display:grid; grid-template-columns:1fr; gap:18px; align-items:start; box-sizing:border-box; }
+  @media (min-width:900px){ .content{ grid-template-columns:360px 1fr; padding:0 24px; gap:22px; } }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:20px;
+    box-shadow:0 1px 3px rgba(30,37,48,0.05);
+  }
+  .form-card{ position:sticky; top:20px; }
+  .form-card h2{
+    font-size:15px; margin:0 0 18px; display:flex; align-items:center; gap:8px; font-weight:700;
+  }
+  .form-card h2 .plus{
+    width:22px; height:22px; border-radius:50%; background:var(--blue); color:#fff;
+    display:inline-flex; align-items:center; justify-content:center; font-size:14px; line-height:1;
+  }
+
+  label{ display:block; font-size:11.5px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.04em; margin:14px 0 6px; }
+  label:first-of-type{ margin-top:0; }
+  input,select{
+    width:100%;
+    background:#F7F9FC;
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:10px 11px;
+    border-radius:8px;
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+  }
+  input:focus,select:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(217,127,66,0.18); }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .hint{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); margin-top:6px; }
+
+  button.save{
+    width:100%;
+    margin-top:20px;
+    background:var(--blue);
+    color:#fff;
+    border:none;
+    padding:12px;
+    border-radius:8px;
+    font-weight:700;
+    font-size:13.5px;
+    letter-spacing:0.02em;
+    cursor:pointer;
+    text-transform:uppercase;
+  }
+  button.save:hover{ background:var(--blue-dark); }
+  .err{ color:var(--red-fg); font-size:12.5px; margin-top:10px; display:none; }
+
+  .feed-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px; padding:0 2px; }
+  .feed-head h2{ font-size:15px; margin:0; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+  .feed-head .count{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); }
+
+  .feed{ display:flex; flex-direction:column; gap:12px; }
+
+  .entry{ position:relative; }
+  .entry .top-row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .entry .badge-icon{
+    width:30px; height:30px; border-radius:8px; background:#FDEEE0; color:var(--blue);
+    display:flex; align-items:center; justify-content:center; font-size:15px; flex:0 0 auto;
+  }
+  .entry .name{ font-weight:700; font-size:15px; }
+  .entry .type-tag{
+    margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted);
+    border:1px solid var(--line); border-radius:5px; padding:2px 7px; white-space:nowrap;
+  }
+  .entry .period{ font-size:13px; color:var(--muted); margin:0 0 12px 38px; }
+  .status-badge{
+    margin-left:38px;
+    display:inline-flex; align-items:center; gap:6px;
+    padding:8px 12px; border-radius:8px; font-size:13px; font-weight:600;
+  }
+  .status-badge.warn{ background:var(--amber-bg); color:var(--amber-fg); }
+  .status-badge.danger{ background:var(--red-bg); color:var(--red-fg); }
+  .status-badge.safe{ background:var(--green-bg); color:var(--green-fg); }
+
+  .del{
+    position:absolute; top:0; right:0; background:none; border:none; color:var(--muted);
+    cursor:pointer; font-size:15px; padding:4px 6px; border-radius:6px;
+  }
+  .del:hover{ color:var(--red-fg); background:var(--red-bg); }
+
+  .empty{
+    border:1px dashed var(--line); border-radius:12px; padding:36px 20px; text-align:center;
+    color:var(--muted); font-size:14px; background:var(--card);
+  }
+  .empty b{ color:var(--ink); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <span class="icon">📱</span>
+    <h1>VENDORPAY REMINDER</h1>
+    <button id="notifyBtn" onclick="enableNotifications()" style="margin-left:auto;background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.4);padding:7px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;">🔔 Enable Alerts</button>
+  </div>
+
+  <div class="content">
+    <div>
+      <div class="card" style="margin-bottom:18px;">
+        <h2 style="font-size:15px; margin:0 0 6px; font-weight:700;">📊 Import from Excel</h2>
+        <p style="font-size:12.5px; color:var(--muted); margin:0 0 12px;">Upload the vendor payment sheet. Columns needed: <b>Vendor Name</b>, <b>Vendor Type</b>, <b>Payment Type</b>, <b>Date</b>.</p>
+        <input type="file" id="excelFile" accept=".xlsx,.xls" onchange="handleExcelImport(event)" style="font-size:12.5px;">
+        <div class="hint" id="importStatus" style="margin-top:8px;"></div>
+        <button id="undoBtn" onclick="undoLastImport()" style="display:none; margin-top:10px; background:none; border:1px solid var(--line); color:var(--red-fg); padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer;">↩️ Undo Last Import</button>
+      </div>
+
+      <div class="card form-card">
+      <h2><span class="plus">+</span> New Vendor Entry</h2>
+
+      <label for="title">Vendor Name / Type</label>
+      <input id="title" type="text" placeholder="e.g. Acme Printing Services">
+
+      <label for="type">Reminder Type</label>
+      <select id="type">
+        <option value="period">Fixed period (start → expiry)</option>
+        <option value="recurring">Recurring monthly (e.g. recharge)</option>
+      </select>
+
+      <div id="periodFields">
+        <div class="row2">
+          <div>
+            <label for="startDate">Start Date</label>
+            <input id="startDate" type="date">
+          </div>
+          <div>
+            <label for="endDate">Expiry Date</label>
+            <input id="endDate" type="date">
+          </div>
+        </div>
+        <div class="hint" id="autoLeadHint">Auto reminder: pick both dates</div>
+      </div>
+
+      <div id="recurringFields" style="display:none;">
+        <label for="recurDay">Day of month due</label>
+        <input id="recurDay" type="number" min="1" max="31" placeholder="e.g. 5">
+        <div class="hint">Renews every month on this day</div>
+
+        <label for="startFrom">Starts From (optional)</label>
+        <input id="startFrom" type="date">
+        <div class="hint">Leave blank if it's already active. Set this if the charge doesn't begin until a future month.</div>
+      </div>
+
+      <label for="leadOverride">Reminder lead time (days) (optional)</label>
+      <input id="leadOverride" type="number" min="1" placeholder="leave blank to use auto value">
+
+      <button class="save" onclick="addEntry()">Save Vendor Reminder</button>
+      <div class="err" id="formErr"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="feed-head">
+        <h2>Active Tracker Feed</h2>
+        <span class="count" id="count">0 entries</span>
+      </div>
+      <button id="deleteSelectedBtn" onclick="deleteSelected()" style="display:none; margin-bottom:12px; background:var(--red-bg); color:var(--red-fg); border:none; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer;">🗑️ Delete Selected (<span id="selCount">0</span>)</button>
+      <div class="feed" id="list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let entries = [];
+const STORAGE_KEY = 'vendor-entries';
+const IMPORT_LOG_KEY = 'vendor-last-import';
+let selectedIds = new Set();
+
+function toggleSelect(id, checked){
+  if(checked) selectedIds.add(id); else selectedIds.delete(id);
+  const btn = document.getElementById('deleteSelectedBtn');
+  document.getElementById('selCount').textContent = selectedIds.size;
+  btn.style.display = selectedIds.size > 0 ? 'inline-block' : 'none';
+}
+
+function deleteSelected(){
+  if(selectedIds.size === 0) return;
+  if(!confirm(`Delete ${selectedIds.size} selected entr${selectedIds.size===1?'y':'ies'}? This can't be undone.`)) return;
+  entries = entries.filter(e => !selectedIds.has(e.id));
+  selectedIds.clear();
+  saveEntries();
+  document.getElementById('deleteSelectedBtn').style.display = 'none';
+  render();
+}
+
+const typeSel = document.getElementById('type');
+const periodFields = document.getElementById('periodFields');
+const recurringFields = document.getElementById('recurringFields');
+typeSel.addEventListener('change', () => {
+  const isRecurring = typeSel.value === 'recurring';
+  periodFields.style.display = isRecurring ? 'none' : 'block';
+  recurringFields.style.display = isRecurring ? 'block' : 'none';
+});
+
+document.getElementById('startDate').addEventListener('change', updateAutoHint);
+document.getElementById('endDate').addEventListener('change', updateAutoHint);
+
+function parseDate(str){ return new Date(str + 'T00:00:00'); }
+function todayMidnight(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+function fmt(d){
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  return dd + '/' + mm + '/' + d.getFullYear();
+}
+
+function autoLeadDays(startStr, endStr){
+  const start = parseDate(startStr), end = parseDate(endStr);
+  const span = daysBetween(start, end);
+  return span <= 31 ? 10 : 30;
+}
+
+function updateAutoHint(){
+  const s = document.getElementById('startDate').value;
+  const e = document.getElementById('endDate').value;
+  const hint = document.getElementById('autoLeadHint');
+  if(s && e && parseDate(e) > parseDate(s)){
+    hint.textContent = 'Auto reminder: ' + autoLeadDays(s,e) + ' days before expiry';
+  } else {
+    hint.textContent = 'Auto reminder: pick both dates';
+  }
+}
+
+function clampDay(y,m,d){
+  const last = new Date(y, m+1, 0).getDate();
+  return Math.min(d, last);
+}
+
+function nextRecurringDate(recurDay, today, startFrom){
+  let base = today;
+  if(startFrom){
+    const sf = (startFrom instanceof Date) ? startFrom : parseDate(startFrom);
+    if(sf > base) base = sf;
+  }
+  let y = base.getFullYear(), m = base.getMonth();
+  let candidate = new Date(y, m, clampDay(y,m,recurDay));
+  if(candidate < base){
+    m += 1; if(m > 11){ m = 0; y += 1; }
+    candidate = new Date(y, m, clampDay(y,m,recurDay));
+  }
+  return candidate;
+}
+
+function loadEntries(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    entries = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    entries = [];
+  }
+  render();
+}
+
+function saveEntries(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  }catch(e){
+    console.error('Save failed', e);
+  }
+}
+
+function addEntry(){
+  const title = document.getElementById('title').value.trim();
+  const type = typeSel.value;
+  const errEl = document.getElementById('formErr');
+  errEl.style.display = 'none';
+
+  if(!title){ errEl.textContent = 'Enter a vendor name / type.'; errEl.style.display='block'; return; }
+
+  const leadRaw = document.getElementById('leadOverride').value;
+  const leadOverride = leadRaw ? parseInt(leadRaw,10) : null;
+
+  let entry = { id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), title, type, leadOverride };
+
+  if(type === 'period'){
+    const s = document.getElementById('startDate').value;
+    const e = document.getElementById('endDate').value;
+    if(!s || !e){ errEl.textContent = 'Pick a start and expiry date.'; errEl.style.display='block'; return; }
+    if(parseDate(e) <= parseDate(s)){ errEl.textContent = 'Expiry date must be after the start date.'; errEl.style.display='block'; return; }
+    entry.startDate = s;
+    entry.endDate = e;
+  } else {
+    const day = parseInt(document.getElementById('recurDay').value,10);
+    if(!day || day < 1 || day > 31){ errEl.textContent = 'Enter a valid day of month (1–31).'; errEl.style.display='block'; return; }
+    entry.recurDay = day;
+    const startFromVal = document.getElementById('startFrom').value;
+    entry.startFrom = startFromVal || null;
+  }
+
+  entries.push(entry);
+  saveEntries();
+  render();
+
+  document.getElementById('title').value='';
+  document.getElementById('startDate').value='';
+  document.getElementById('endDate').value='';
+  document.getElementById('recurDay').value='';
+  document.getElementById('startFrom').value='';
+  document.getElementById('leadOverride').value='';
+  updateAutoHint();
+}
+
+function removeEntry(id){
+  entries = entries.filter(e => e.id !== id);
+  saveEntries();
+  render();
+}
+
+function computeView(entry){
+  const today = todayMidnight();
+  let expiry, lead, expired = false;
+
+  if(entry.type === 'period'){
+    expiry = parseDate(entry.endDate);
+    lead = entry.leadOverride != null ? entry.leadOverride : autoLeadDays(entry.startDate, entry.endDate);
+    if(today > expiry) expired = true;
+  } else {
+    expiry = nextRecurringDate(entry.recurDay, today, entry.startFrom || null);
+    lead = entry.leadOverride != null ? entry.leadOverride : 10;
+  }
+
+  const reminderDate = new Date(expiry);
+  reminderDate.setDate(reminderDate.getDate() - lead);
+  const daysToExpiry = daysBetween(today, expiry);
+
+  let statusText, tone;
+  if(expired){
+    statusText = Math.abs(daysToExpiry) + ' days overdue';
+    tone = 'danger';
+  } else if(today >= reminderDate){
+    statusText = daysToExpiry <= 0 ? 'Due today' : daysToExpiry + ' days for expiry';
+    tone = daysToExpiry <= 3 ? 'danger' : 'warn';
+  } else {
+    statusText = daysToExpiry + ' days remaining before expiry';
+    tone = 'safe';
+  }
+
+  return { expiry, lead, daysToExpiry, statusText, tone, expired };
+}
+
+function render(){
+  const list = document.getElementById('list');
+  document.getElementById('count').textContent = entries.length + (entries.length===1 ? ' entry' : ' entries');
+
+  if(entries.length === 0){
+    list.innerHTML = '<div class="empty">No entries yet. <b>Save your first vendor reminder</b> using the form on the left.</div>';
+    return;
+  }
+
+  const withView = entries.map(e => ({ e, v: computeView(e) }));
+  withView.sort((a,b) => a.v.expiry - b.v.expiry);
+
+  list.innerHTML = withView.map(({e,v}) => {
+    const typeLabel = e.type === 'period' ? 'PERIOD' : 'MONTHLY · DAY ' + e.recurDay;
+    const startsFromNote = (e.type === 'recurring' && e.startFrom && parseDate(e.startFrom) > todayMidnight())
+      ? ' <span style="color:var(--muted);">(starts ' + fmt(parseDate(e.startFrom)) + ')</span>' : '';
+    const periodLine = e.type === 'period'
+      ? '📅 ' + fmt(parseDate(e.startDate)) + ' – ' + fmt(parseDate(e.endDate))
+      : '📅 Next due ' + fmt(v.expiry) + startsFromNote;
+    const iconChar = v.tone === 'danger' ? '⛔' : v.tone === 'warn' ? '⚠️' : '✅';
+    return `
+      <div class="card entry">
+        <button class="del" onclick="removeEntry('${e.id}')" title="Delete">✕</button>
+        <input type="checkbox" class="select-box" data-id="${e.id}" onchange="toggleSelect('${e.id}', this.checked)" ${selectedIds.has(e.id) ? 'checked' : ''} style="position:absolute; top:2px; left:-2px; width:16px; height:16px; cursor:pointer;">
+        <div class="top-row" style="margin-left:20px;">
+          <div class="badge-icon">🏢</div>
+          <div class="name">${escapeHtml(e.title)}</div>
+          <div class="type-tag">${typeLabel}</div>
+        </div>
+        <div class="period">${periodLine}</div>
+        <div class="status-badge ${v.tone}">${iconChar} ${v.statusText}</div>
+        ${e.type === 'recurring' ? `
+        <div style="margin-left:38px; margin-top:8px; display:flex; align-items:center; gap:6px;">
+          <label style="font-size:10.5px; color:var(--muted); text-transform:none; margin:0; font-weight:500;">Due day</label>
+          <input type="number" min="1" max="31" value="${e.recurDay}" onchange="updateRecurDay('${e.id}', this.value)" style="width:52px; padding:4px 6px; font-size:12px;">
+          <span style="font-size:10.5px; color:var(--muted);">of each month</span>
+        </div>` : ''}
+        <div style="margin-left:38px; margin-top:8px; display:flex; align-items:center; gap:6px;">
+          <label style="font-size:10.5px; color:var(--muted); text-transform:none; margin:0; font-weight:500;">Remind</label>
+          <input type="number" min="1" value="${v.lead}" onchange="updateLead('${e.id}', this.value)" style="width:52px; padding:4px 6px; font-size:12px;">
+          <span style="font-size:10.5px; color:var(--muted);">days before</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function updateRecurDay(id, value){
+  const entry = entries.find(e => e.id === id);
+  if(!entry) return;
+  const num = parseInt(value, 10);
+  if(num && num >= 1 && num <= 31) entry.recurDay = num;
+  saveEntries();
+  render();
+}
+
+function updateLead(id, value){
+  const entry = entries.find(e => e.id === id);
+  if(!entry) return;
+  const num = parseInt(value, 10);
+  entry.leadOverride = (num && num > 0) ? num : null;
+  saveEntries();
+  render();
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+let swRegistration = null;
+
+async function registerSW(){
+  if('serviceWorker' in navigator){
+    try{
+      swRegistration = await navigator.serviceWorker.register('sw.js');
+    }catch(e){ console.error('SW registration failed', e); }
+  }
+}
+
+function enableNotifications(){
+  if(!('Notification' in window)){
+    alert('This browser does not support notifications.');
+    return;
+  }
+  Notification.requestPermission().then(perm => {
+    const btn = document.getElementById('notifyBtn');
+    if(perm === 'granted'){
+      btn.textContent = '🔔 Alerts On';
+      btn.style.background = 'rgba(255,255,255,0.35)';
+      checkDueNotifications();
+    } else {
+      btn.textContent = '🔕 Blocked';
+    }
+  });
+}
+
+function notifiedKey(entryId){
+  const today = todayMidnight().toISOString().slice(0,10);
+  return 'notified-' + entryId + '-' + today;
+}
+
+function fireNotification(title, body){
+  if(swRegistration){
+    swRegistration.showNotification(title, { body, icon: 'icon.svg', badge: 'icon.svg' });
+  } else if(Notification.permission === 'granted'){
+    new Notification(title, { body, icon: 'icon.svg' });
+  }
+}
+
+function checkDueNotifications(){
+  if(Notification.permission !== 'granted') return;
+  entries.forEach(e => {
+    const v = computeView(e);
+    if(v.tone === 'warn' || v.tone === 'danger'){
+      const key = notifiedKey(e.id);
+      if(!localStorage.getItem(key)){
+        fireNotification('⏰ ' + e.title, v.statusText);
+        localStorage.setItem(key, '1');
+      }
+    }
+  });
+}
+
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') checkDueNotifications();
+});
+setInterval(checkDueNotifications, 60 * 60 * 1000); // re-check hourly while app is open
+
+if('Notification' in window && Notification.permission === 'granted'){
+  document.getElementById('notifyBtn').textContent = '🔔 Alerts On';
+}
+
+registerSW();
+updateAutoHint();
+loadEntries();
+setTimeout(checkDueNotifications, 1500);
+
+function toISO(dd, mm, yyyy){
+  if(yyyy.length === 2) yyyy = '20' + yyyy;
+  return yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(dd).padStart(2,'0');
+}
+
+function excelDateToParts(cellVal){
+  if(cellVal instanceof Date){
+    return { dd: cellVal.getDate(), mm: cellVal.getMonth()+1, yyyy: cellVal.getFullYear() };
+  }
+  if(typeof cellVal === 'string'){
+    const m = cellVal.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if(m) return { dd: parseInt(m[1],10), mm: parseInt(m[2],10), yyyy: parseInt(m[3],10) };
+  }
+  return null;
+}
+
+function extractPeriod(text){
+  if(!text) return null;
+  const m = text.match(/period\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\s*to\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/i);
+  if(!m) return null;
+  return { start: toISO(m[1], m[2], m[3]), end: toISO(m[4], m[5], m[6]) };
+}
+
+function isMonthlyType(text){
+  return !!text && /^\s*monthly/i.test(text);
+}
+
+const MONTH_NAMES = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+
+function extractMonthlyAnchor(text){
+  if(!text) return null;
+  const m = text.match(/([a-z]{3,9})\s+(\d{4})/i);
+  if(!m) return null;
+  const monthKey = m[1].toLowerCase().slice(0,3);
+  if(!(monthKey in MONTH_NAMES)) return null;
+  return { month: MONTH_NAMES[monthKey], year: parseInt(m[2], 10) };
+}
+
+function shortLabel(text){
+  if(!text) return '';
+  const clean = text.replace(/^payment for\s*/i, '').trim();
+  return clean.length > 24 ? clean.slice(0, 24).trim() + '…' : clean;
+}
+
+async function handleExcelImport(event){
+  const file = event.target.files[0];
+  const statusEl = document.getElementById('importStatus');
+  if(!file) return;
+  statusEl.textContent = 'Reading file...';
+
+  try{
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { cellDates: true });
+
+    let rows = null;
+    for(const sheetName of wb.SheetNames){
+      const sheet = wb.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      if(json.length && Object.keys(json[0]).some(k => /vendor name/i.test(k))){
+        rows = json;
+        break;
+      }
+    }
+    if(!rows){
+      statusEl.textContent = '⚠️ Could not find a sheet with a "Vendor Name" column.';
+      return;
+    }
+
+    function getCol(row, patterns){
+      for(const key of Object.keys(row)){
+        if(patterns.some(p => p.test(key))) return row[key];
+      }
+      return '';
+    }
+
+    const periodCandidates = {};
+    const monthlyCandidates = {};
+    let skipped = 0;
+
+    rows.forEach(row => {
+      const vendorName = String(getCol(row, [/vendor name/i])).trim();
+      const vendorType = String(getCol(row, [/vendor type/i])).trim();
+      const paymentType = String(getCol(row, [/payment type/i])).trim();
+      const dateVal = getCol(row, [/^date$/i]);
+      if(!vendorName) return;
+
+      const key = (vendorName + '|' + vendorType).toLowerCase();
+      const period = extractPeriod(paymentType);
+
+      if(period){
+        const existing = periodCandidates[key];
+        if(!existing || period.end > existing.end){
+          periodCandidates[key] = { vendorName, vendorType, start: period.start, end: period.end };
+        }
+        return;
+      }
+
+      if(isMonthlyType(paymentType)){
+        const anchor = extractMonthlyAnchor(paymentType);
+        const existing = monthlyCandidates[key];
+        const anchorRank = anchor ? anchor.year * 12 + anchor.month : -1;
+        const existingRank = (existing && existing.anchorRank != null) ? existing.anchorRank : -1;
+        if(!existing || anchorRank >= existingRank){
+          monthlyCandidates[key] = { vendorName, vendorType, recurDay: 1, anchor, anchorRank };
+        }
+        return;
+      }
+
+      skipped++;
+    });
+
+    let added = 0, updated = 0;
+    const today = todayMidnight();
+    const importLog = { addedIds: [], previousSnapshots: {} };
+
+    function clampDayLocal(y, m, d){
+      const last = new Date(y, m+1, 0).getDate();
+      return Math.min(d, last);
+    }
+
+    function upsert(sourceKey, buildEntry){
+      const idx = entries.findIndex(e => e.sourceKey === sourceKey);
+      if(idx >= 0){
+        importLog.previousSnapshots[sourceKey] = { ...entries[idx] };
+        entries[idx] = { ...entries[idx], ...buildEntry(entries[idx].id) };
+        updated++;
+      } else {
+        const newEntry = buildEntry();
+        entries.push(newEntry);
+        importLog.addedIds.push(newEntry.id);
+        added++;
+      }
+    }
+
+    Object.keys(periodCandidates).forEach(key => {
+      const c = periodCandidates[key];
+      if(parseDate(c.end) < today) return;
+      upsert(key, (existingId) => ({
+        id: existingId || (Date.now().toString(36)+Math.random().toString(36).slice(2,6)),
+        title: c.vendorName + ' (' + shortLabel(c.vendorType) + ')',
+        type: 'period',
+        startDate: c.start,
+        endDate: c.end,
+        leadOverride: null,
+        sourceKey: key
+      }));
+    });
+
+    Object.keys(monthlyCandidates).forEach(key => {
+      const c = monthlyCandidates[key];
+      let startFrom = null;
+      if(c.anchor){
+        const anchorDate = new Date(c.anchor.year, c.anchor.month, clampDayLocal(c.anchor.year, c.anchor.month, c.recurDay));
+        if(anchorDate > today) startFrom = anchorDate.toISOString().slice(0,10);
+      }
+      upsert(key, (existingId) => ({
+        id: existingId || (Date.now().toString(36)+Math.random().toString(36).slice(2,6)),
+        title: c.vendorName + ' (' + shortLabel(c.vendorType) + ')',
+        type: 'recurring',
+        recurDay: c.recurDay,
+        startFrom: startFrom,
+        leadOverride: null,
+        sourceKey: key
+      }));
+    });
+
+    saveEntries();
+    localStorage.setItem(IMPORT_LOG_KEY, JSON.stringify(importLog));
+    document.getElementById('undoBtn').style.display = (added + updated) > 0 ? 'inline-block' : 'none';
+    render();
+    statusEl.textContent = `✅ Imported: ${added} new, ${updated} updated, ${skipped} skipped (no upcoming date found).`;
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = "⚠️ Could not read that file. Make sure it's a valid .xlsx file.";
+  }
+}
+
+function undoLastImport(){
+  const raw = localStorage.getItem(IMPORT_LOG_KEY);
+  if(!raw){ alert('No import to undo.'); return; }
+  const log = JSON.parse(raw);
+  const addedCount = log.addedIds.length;
+  const updatedCount = Object.keys(log.previousSnapshots).length;
+  if(!confirm(`Undo last import? This will remove ${addedCount} newly added entr${addedCount===1?'y':'ies'} and revert ${updatedCount} updated entr${updatedCount===1?'y':'ies'} back to their previous values.`)) return;
+
+  entries = entries.filter(e => !log.addedIds.includes(e.id));
+  Object.keys(log.previousSnapshots).forEach(sourceKey => {
+    const idx = entries.findIndex(e => e.sourceKey === sourceKey);
+    if(idx >= 0) entries[idx] = log.previousSnapshots[sourceKey];
+  });
+
+  saveEntries();
+  localStorage.removeItem(IMPORT_LOG_KEY);
+  document.getElementById('undoBtn').style.display = 'none';
+  document.getElementById('importStatus').textContent = '↩️ Last import undone.';
+  render();
+}
+
+if(localStorage.getItem(IMPORT_LOG_KEY)){
+  document.getElementById('undoBtn').style.display = 'inline-block';
+}
+
+</script>
+</body>
+</html>
